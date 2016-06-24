@@ -1,5 +1,7 @@
+#!/usr/bin/env node
 var program = require('commander');
 var lycamplusjs = require('lycamplusjs');
+var appInfo = require('./../package.json');
 
 var fs = require('fs');
 function getUserHome() {
@@ -30,8 +32,8 @@ try {
 //     console.log("config",config);
 //   });
 
-var oauth2URL =  process.env.OAUTH2_URL || 'http://oauth-dev.lycam.tv';
-var apiURL =  process.env.API_URL || 'http://api-dev.lycam.tv';
+var oauth2URL =  process.env.OAUTH2_URL || 'https://oauth.lycam.tv';
+var apiURL =  process.env.API_URL || 'https://api.lycam.tv';
 // console.log('token', token);
 
 
@@ -42,51 +44,54 @@ var apiURL =  process.env.API_URL || 'http://api-dev.lycam.tv';
 // client_secret=znqPiWzGNz6pPePWTUYDDX1ToHg68I
 
 program
-  .version('0.0.1')
-  .option('-C, --chdir <path>', 'change the working directory')
-  .option('-c, --config <path>', 'set config path. defaults to ./deploy.conf')
+  .version(appInfo.version)
+  // .option('-C, --chdir <path>', 'change the working directory')
+  // .option('-c, --config <path>', 'set config path. defaults to ./deploy.conf')
   .option('-T, --no-tests', 'ignore test hook');
 
 program.on('--help', function () {
   console.log('  Examples:');
   console.log('');
-  console.log('    $ custom-help --help');
-  console.log('    $ custom-help -h');
+  console.log('    $ lcp --help');
+  console.log('    $ lcp -h');
+  console.log('    $ lcp st -h');
   console.log('');
 });
 
 program
-  .command('setup [env]')
-  .description('run setup commands for all envs')
-  .option('-s, --setup_mode [mode]', 'Which setup mode to use')
-  .action(function (env, options) {
-    var mode = options.setup_mode || 'normal';
-    env = env || 'all';
-    console.log('setup for %s env(s) with %s mode', env, mode);
-  });
-
-program
-.command('configure [appkey] [appsecret]')
-.description('run setup commands for all envs')
-.option('-s, --setup_mode [mode]', 'Which setup mode to use')
+.command('configure <appkey> <appsecret>')
+.alias('co')
+.description('命令行工具环境配置')
+.option('-a, --apiurl <mode>', 'API服务器地址')
+.option('-o, --oauthurl <mode>', '认证服务器地址')
 .action(function (appkey, appsecret, options) {
-  var mode = options.setup_mode || 'normal';
-  appkey = appkey || 'all';
+
   function writeConfig(callback) {
+
+    var apiurl = options.apiurl || apiURL;
+    var oauthurl = options.oauthurl || oauth2URL;
+
     var config = {
       appKey: appkey,
       appSecret: appsecret,
-      oauth2URL: oauth2URL,
-      apiURL: apiURL,
+      oauth2URL: oauthurl,
+      apiURL: apiurl,
     };
     fs.writeFile(configPath, JSON.stringify(config), function (err, data) {
-      console.log('write configure for %s %s with %s mode', appkey, appsecret, mode);
+      if (err) {
+        console.error('写入环境配置出错', err);
+      } else
+        console.log('写入环境配置 %s %s 到 %s', appkey, appsecret, configPath);
     });
   }
 
-  fs.exists(home, function (err, exist) {
+  fs.exists(home, function (exist) {
+    console.error(home, exist);
+
     if (exist == false) {
       fs.mkdir(home, function (err, data) {
+        if (err)
+          console.error('mkdir error', err, home);
         writeConfig();
       });
     } else {
@@ -113,9 +118,8 @@ function writeToken(token, callback) {
 
 program
   .command('login <username> <password>')
-  .alias('ex')
+  .alias('lo')
   .description('execute the given remote cmd')
-  .option('-e, --exec_mode <mode>', 'Which exec mode to use')
   .action(function (username, password, options) {
     var options = config;
     options.username = username;
@@ -136,13 +140,12 @@ program
   }).on('--help', function () {
     console.log('  Examples:');
     console.log();
-    console.log('    $ deploy exec sequential');
-    console.log('    $ deploy exec async');
+    console.log('    $ login useranem password');
     console.log();
   });
 
 function writeResult(path, data, callback) {
-  fs.writeFile(path, JSON.stringify(data), function (err, result) {
+  fs.writeFile(path, JSON.stringify(data, null, 2), function (err, result) {
     console.log('write data ', data);
     if (callback) {
       callback(err, result);
@@ -151,10 +154,10 @@ function writeResult(path, data, callback) {
 }
 
 program
-  .command('gifts')
-  .alias('ex')
+  .command('gift')
+  .alias('gi')
   .description('execute the given remote cmd')
-  .option('-o, --output <file>', 'Which exec mode to use')
+  .option('-o, --output <file>', '输出文件名')
   .action(function (options) {
     console.log('exec  using %s mode', options.output);
     getClient().gift.list({}, function (err, data) {
@@ -164,7 +167,7 @@ program
 
       var path = options.output;
       if (path) {
-        var  file = path + '.json'
+        var  file = path;
         writeResult(file, data, function (err, result) {
           console.log('write result to file:', file);
         });
@@ -176,62 +179,89 @@ program
   }).on('--help', function () {
     console.log('  Examples:');
     console.log();
-    console.log('    $ deploy exec sequential');
-    console.log('    $ deploy exec async');
+    console.log('    $ lcp gift');
     console.log();
   });
 
-
 program
-  .command('streams')
-  .alias('ex')
+  .command('account <cmd> [params]')
+    //短命令 - 简写方式')
+  .alias('a')
   .description('execute the given remote cmd')
-  .option('-o, --output <file>', 'Which exec mode to use')
-  .action(function (options) {
-    console.log('exec  using %s mode', options.output);
-    getClient().stream.list({}, function (err, data) {
-      if (err) {
-        console.error(err);
-      }
+  .option('-o, --output <file>', '输出文件名')
+  .action(function (cmd, params, options) {
+    if (cmd == 'show') {
+      getClient().account.show(function (err, data) {
+        if (err) {
+          console.error(err);
+        }
 
-      var path = options.output;
-      if (path) {
-        var  file = path + '.json'
-        writeResult(file, data, function (err, result) {
-          console.log('write result to file:', file);
+        var path = options.output;
+        if (path) {
+          var  file = path;
+          writeResult(file, data, function (err, result) {
+            console.log('write result to file:', file);
+          });
+        }
+
+        console.log(data);
+      });
+    }
+    else {
+      console.log('unknown cmd %s', cmd);
+    }
+
+  }).on('--help', function () {
+    console.log('  Examples:');
+    console.log();
+    console.log('    $ lcp a show');
+    console.log();
+  });
+
+//像git风格一样的子命令
+program
+    //子命令
+    .command('stream <cmd> [params]')
+    //短命令 - 简写方式
+    .alias('st')
+    //说明
+    .description('视频流管理')
+    //resume的子命令
+    .option('-o, --output <mode>', '输出文件名')
+    .option('-n, --rows <mode>', '每页纪录数')
+    // .option('-k, --keyword <mode>', '关键字')
+    //注册一个callback函数
+    .action(function (cmd, params, options) {
+
+      if (cmd == 'search') {
+        var resultsPerPage = options.rows || 10;
+        var keyword = params || '';
+        console.log('search streams  resultsPerPage %s %s', resultsPerPage, keyword);
+        getClient().stream.search({ keyword: keyword, resultsPerPage: resultsPerPage }, function (err, data) {
+          if (err) {
+            console.error(err);
+          }
+
+          var path = options.output;
+          if (path) {
+            var  file = path;
+            writeResult(file, data, function (err, result) {
+              console.log('write result to file:', file);
+            });
+          }
+
+          console.log(data);
         });
+      } else {
+        console.log('unknown cmd %s', cmd);
       }
 
-      console.log(data);
-    });
-
-  }).on('--help', function () {
+    }).on('--help', function () {
     console.log('  Examples:');
     console.log();
-    console.log('    $ deploy exec sequential');
-    console.log('    $ deploy exec async');
-    console.log();
-  });  
+    console.log('    $ lcp st search test -n 5');
 
-program
-  .command('exec <cmd>')
-  .alias('ex')
-  .description('execute the given remote cmd')
-  .option('-e, --exec_mode <mode>', 'Which exec mode to use')
-  .action(function (cmd, options) {
-    console.log('exec "%s" using %s mode', cmd, options.exec_mode);
-  }).on('--help', function () {
-    console.log('  Examples:');
     console.log();
-    console.log('    $ deploy exec sequential');
-    console.log('    $ deploy exec async');
-    console.log();
-  });
-
-program
-  .command('*')
-  .action(function (env) {
-    console.log('deploying "%s"', env);
   });
 
 program.parse(process.argv);
