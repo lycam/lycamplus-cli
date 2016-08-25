@@ -100,7 +100,13 @@ program
 
   });
 
-});
+}).on('--help', function () {
+    console.log('  Examples:');
+    console.log();
+    console.log('    $ lcp co appkey appsecret');
+    console.log('    $ lcp co appkey appsecret -o https://oauth.lycam.tv -a https://api.lycam.tv');
+    console.log();
+  });;
 
 function getClient() {
   var lycamplus = new lycamplusjs(config);
@@ -119,7 +125,7 @@ function writeToken(token, callback) {
 program
   .command('login <username> <password>')
   .alias('lo')
-  .description('execute the given remote cmd')
+  .description('用户登录')
   .action(function (username, password, options) {
     var options = config;
     options.username = username;
@@ -152,34 +158,77 @@ function writeResult(path, data, callback) {
     }
   });
 }
-
 program
-  .command('gift')
-  .alias('gi')
-  .description('execute the given remote cmd')
+  .command('msg <cmd> [param1] [param2] [param3]')
+  .alias('m')
+  .description('消息管理')
   .option('-o, --output <file>', '输出文件名')
-  .action(function (options) {
+  .action(function (cmd,param1,param2,param3, options) {
     console.log('exec  using %s mode', options.output);
-    getClient().gift.list({}, function (err, data) {
-      if (err) {
-        console.error(err);
-      }
+    if (cmd == 'chat') {
+      var topic = param1;
+      var msg = param2;
+      
+      getClient().gift.chat(topic,msg, function (err, data) {
+        if (err) {
+          console.error(err);
+        }
+        console.log("send chat to:"+topic,msg);
 
-      var path = options.output;
-      if (path) {
-        var  file = path;
-        writeResult(file, data, function (err, result) {
-          console.log('write result to file:', file);
-        });
-      }
-
-      console.log(data);
-    });
+        console.log(data);
+      });
+    }
 
   }).on('--help', function () {
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp gift');
+    console.log('    $ lcp gift send 9aa1bf90-1f5d-11e6-ba5e-c56c2a8bfd5d myVideo:dev-3b11e871-39fc-11e6-bac4-9f0d0e18eaa6 1');
+    console.log();
+  });
+
+
+program
+  .command('gift <cmd> [param1] [param2] [param3]')
+  .alias('gi')
+  .description('礼物管理')
+  .option('-o, --output <file>', '输出文件名')
+  .action(function (cmd,param1,param2,param3, options) {
+    console.log('exec  using %s mode', options.output);
+    if (cmd == 'list') {
+      getClient().gift.list({}, function (err, data) {
+        if (err) {
+          console.error(err);
+        }
+
+        var path = options.output;
+        if (path) {
+          var  file = path;
+          writeResult(file, data, function (err, result) {
+            console.log('write result to file:', file);
+          });
+        }
+
+        console.log(data);
+      });
+    }
+    else if(cmd=="send"){
+      var receiver = param1;
+      var topic = param2;
+      var giftId = param3;
+      getClient().gift.send(receiver, topic, giftId, function (err, data) {
+        if (err) {
+          console.error(err);
+        }
+        console.log(data);
+      });
+    }
+
+  }).on('--help', function () {
+    console.log('  Examples:');
+    console.log();
+    console.log('    $ lcp gift');
+    console.log('    $ lcp gift send 9aa1bf90-1f5d-11e6-ba5e-c56c2a8bfd5d myVideo:dev-3b11e871-39fc-11e6-bac4-9f0d0e18eaa6 1');
     console.log();
   });
 
@@ -187,7 +236,7 @@ program
   .command('account <cmd> [params]')
     //短命令 - 简写方式')
   .alias('a')
-  .description('execute the given remote cmd')
+  .description('用户账户管理')
   .option('-o, --output <file>', '输出文件名')
   .action(function (cmd, params, options) {
     if (cmd == 'show') {
@@ -206,8 +255,7 @@ program
 
         console.log(data);
       });
-    }
-    else {
+    } else {
       console.log('unknown cmd %s', cmd);
     }
 
@@ -252,7 +300,48 @@ program
 
           console.log(data);
         });
-      } else {
+      } 
+      else if (cmd == 'start') {
+        var resultsPerPage = options.rows || 10;
+        var streamId = params || '';
+        console.log('start streams  resultsPerPage %s %s', resultsPerPage, keyword);
+        getClient().stream.start(streamId,{}, function (err, data) {
+          if (err) {
+            console.error(err);
+          }
+
+          var path = options.output;
+          if (path) {
+            var  file = path;
+            writeResult(file, data, function (err, result) {
+              console.log('write result to file:', file);
+            });
+          }
+
+          console.log(data);
+        });
+      } 
+      else if (cmd == 'stop') {
+        var resultsPerPage = options.rows || 10;
+        var streamId = params || '';
+        console.log('stop streams  resultsPerPage %s %s', resultsPerPage, keyword);
+        getClient().stream.stop(streamId, function (err, data) {
+          if (err) {
+            console.error(err);
+          }
+
+          var path = options.output;
+          if (path) {
+            var  file = path;
+            writeResult(file, data, function (err, result) {
+              console.log('write result to file:', file);
+            });
+          }
+
+          console.log(data);
+        });
+      } 
+      else {
         console.log('unknown cmd %s', cmd);
       }
 
