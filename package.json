@@ -1,6 +1,6 @@
 {
   "name": "lycamplus-cli",
-  "version": "0.1.9",
+  "version": "0.1.13",
   "description": "command client for lycamplus",
   "main": "index.js",
   "bin": { "lcp": "bin/lcp.js" },

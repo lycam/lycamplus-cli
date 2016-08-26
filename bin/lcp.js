@@ -4,25 +4,31 @@ var lycamplusjs = require('lycamplusjs');
 var appInfo = require('./../package.json');
 
 var fs = require('fs');
+
+var exec = require('child_process').exec; 
+
 function getUserHome() {
   return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 }
 
 var home = getUserHome() + '/.lcp-cli';
 var configPath = home + '/config.json';
-var tokenPath = home + '/token.json';
 // console.log('home', home);
 var config = {};
 var token = {};
 try {
   config = require(configPath);
-
 }catch (err) {
   config = {};
 }
 
 try {
+
+  var clientConfig = config.apps[config.currentApp];
+  var currentUser = clientConfig.currentUser;
+  var tokenPath = clientConfig.users[currentUser];
   token = require(tokenPath);
+  console.log("tokenPath",tokenPath,token);
 }catch (err) {
   token = {};
 }
@@ -59,29 +65,41 @@ program.on('--help', function () {
 });
 
 program
-.command('configure <appkey> <appsecret>')
+.command('configure <appkey> <appsecret> [name]')
 .alias('co')
 .description('命令行工具环境配置')
 .option('-a, --apiurl <mode>', 'API服务器地址')
 .option('-o, --oauthurl <mode>', '认证服务器地址')
-.action(function (appkey, appsecret, options) {
+.action(function (appkey, appsecret, name,options) {
 
-  function writeConfig(callback) {
+  function writeAppConfig(callback) {
 
     var apiurl = options.apiurl || apiURL;
     var oauthurl = options.oauthurl || oauth2URL;
 
-    var config = {
+    var conf = {
       appKey: appkey,
       appSecret: appsecret,
       oauth2URL: oauthurl,
       apiURL: apiurl,
     };
-    fs.writeFile(configPath, JSON.stringify(config), function (err, data) {
+    var path = home + '/'+appkey+'.json';
+    // console.log('写入环境配置', path);
+    fs.writeFile(path, JSON.stringify(conf), function (err, data) {
       if (err) {
         console.error('写入环境配置出错', err);
-      } else
-        console.log('写入环境配置 %s %s 到 %s', appkey, appsecret, configPath);
+      } else{
+        console.log('写入环境配置 %s %s 到 %s', appkey, appsecret, path);
+        config.currentApp = appkey;
+        var apps = config.apps || {};
+        apps[appkey] = conf;
+        conf.name = name || "noname";
+        config.apps = apps;
+        writeConfig(config,function(err,data){
+          callback(err, data);
+        });
+        
+      }
     });
   }
 
@@ -92,10 +110,10 @@ program
       fs.mkdir(home, function (err, data) {
         if (err)
           console.error('mkdir error', err, home);
-        writeConfig();
+        writeAppConfig();
       });
     } else {
-      writeConfig();
+      writeAppConfig();
     }
 
   });
@@ -104,21 +122,37 @@ program
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp co appkey appsecret');
+    console.log('    $ lcp co appkey appsecret testapp');
     console.log('    $ lcp co appkey appsecret -o https://oauth.lycam.tv -a https://api.lycam.tv');
     console.log();
   });;
 
 function getClient() {
-  var lycamplus = new lycamplusjs(config);
+  var clientConfig = config.apps[config.currentApp];
+  // console.log("clientConfig",clientConfig);
+  var lycamplus = new lycamplusjs(clientConfig);
   lycamplus.token  = token;
   return lycamplus;
 }
+function writeConfig(config,callback) {
 
-function writeToken(token, callback) {
+    fs.writeFile(configPath, JSON.stringify(config), function (err, data) {
+      if (err) {
+        console.error('写入环境配置出错', err);
+      } else
+        console.log('写入环境配置到 %s', configPath);
+    });
+}
 
+function writeToken(key,token, callback) {
+  
+  var tokenPath = home + '/'+key+'.token.json';
+  console.log('tokenPath',tokenPath);
   fs.writeFile(tokenPath, JSON.stringify(token), function (err, data) {
     console.log('write token ', token);
-    callback(err, data);
+    callback(err, tokenPath);
+    
+    
   });
 }
 
@@ -127,7 +161,10 @@ program
   .alias('lo')
   .description('用户登录')
   .action(function (username, password, options) {
-    var options = config;
+
+    var clientConfig = config.apps[config.currentApp];
+    console.log("clientConfig",clientConfig);
+    var options = clientConfig;
     options.username = username;
     options.password = password;
     var lycamplus = new lycamplusjs(options);
@@ -135,9 +172,21 @@ program
     lycamplus.auth('password', function (err, token) {
         console.log('auth', token);
         if (token) {
+          var key = config.currentApp+"."+username;
 
-          writeToken(token, function (err, data) {
+          writeToken(key,token, function (err, tokenPath) {
             console.log('login "%s" successed', username, token);
+            config.apps = config.apps || {};
+            config.apps[config.currentApp] = config.apps[config.currentApp] || {};
+            config.apps[config.currentApp].users = config.apps[config.currentApp].users || {};
+            config.apps[config.currentApp].users[username] = tokenPath;
+            config.apps[config.currentApp].currentUser = username;
+            
+
+            writeConfig(config,function(err,data){
+              
+            });
+            
           });
         }
 
@@ -149,6 +198,9 @@ program
     console.log('    $ login useranem password');
     console.log();
   });
+
+
+
 
 function writeResult(path, data, callback) {
   fs.writeFile(path, JSON.stringify(data, null, 2), function (err, result) {
@@ -266,6 +318,48 @@ program
     console.log();
   });
 
+program
+  .command('app <cmd> [params]')
+    //短命令 - 简写方式')
+  .alias('a')
+  .description('APP管理')
+  .option('-o, --output <file>', '输出文件名')
+  .action(function (cmd, params, options) {
+    if (cmd == 'list') {
+      console.log("total:"+ Object.keys(config.apps).length);
+      console.log("current:"+ config.currentApp);
+      for(var i in config.apps){
+        var app = config.apps[i];
+        console.log(i+":"+app.appSecret+" "+ (app.name||""));
+      }
+
+    } 
+    else if (cmd == 'set') {
+      var index = parseInt(params) || 0;
+
+      var key = Object.keys(config.apps)[index]
+
+      console.log("current:"+ key);
+      config.currentApp = key;
+
+      writeConfig(config,function(err,data){
+              
+      });
+
+    } else {
+      console.log('unknown cmd %s', cmd);
+    }
+
+  }).on('--help', function () {
+    console.log('  Examples:');
+    console.log();
+    console.log('    $ lcp app list');
+    console.log();
+  });
+
+
+ 
+
 //像git风格一样的子命令
 program
     //子命令
@@ -277,6 +371,7 @@ program
     //resume的子命令
     .option('-o, --output <mode>', '输出文件名')
     .option('-n, --rows <mode>', '每页纪录数')
+    .option('-i, --index <mode>', '第几条纪录')
     // .option('-k, --keyword <mode>', '关键字')
     //注册一个callback函数
     .action(function (cmd, params, options) {
@@ -299,6 +394,34 @@ program
           }
 
           console.log(data);
+        });
+      } 
+      else if (cmd == 'open') {
+        var resultsPerPage = options.rows || 10;
+        var keyword = params || '';
+        var index = options.index || 0;
+        
+        console.log('search streams  resultsPerPage %s %s', resultsPerPage, keyword);
+        getClient().stream.search({ keyword: keyword, resultsPerPage: resultsPerPage }, function (err, data) {
+          if (err) {
+            console.error(err);
+          }
+
+          // console.log(data);
+          if(data.items.length>0){
+            if(index+1>data.items.length){
+              index = data.items.length-1;
+            }
+            var item = data.items[index];
+            var cmd = "open " + item.streamUrl;
+            console.log(cmd);
+            console.log("index:",index);
+            exec(cmd, function callback(error, stdout, stderr) { 
+              console.log(stdout);
+            })
+
+          
+          }
         });
       } 
       else if (cmd == 'start') {
@@ -349,6 +472,7 @@ program
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp st search test -n 5');
+    console.log('    $ lcp st open test -i 0');
 
     console.log();
   });
