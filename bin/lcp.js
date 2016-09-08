@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 var program = require('commander');
+var fs = require('fs');
+var exec = require('child_process').exec;
+
 var lycamplusjs = require('lycamplusjs');
 var appInfo = require('./../package.json');
-
-var fs = require('fs');
-
-var exec = require('child_process').exec; 
 
 function getUserHome() {
   return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
@@ -23,7 +22,6 @@ try {
 }
 
 try {
-
   var clientConfig = config.apps[config.currentApp];
   var currentUser = clientConfig.currentUser;
   var tokenPath = clientConfig.users[currentUser];
@@ -64,13 +62,59 @@ program.on('--help', function () {
   console.log('');
 });
 
+
+
+// tool functions
+// 1. getClient by currentApp
+function getClient() {
+  var clientConfig = config.apps[config.currentApp];
+  // console.log("clientConfig",clientConfig);
+  var lycamplus = new lycamplusjs(clientConfig);
+  lycamplus.token  = token;
+  return lycamplus;
+}
+
+// 2. wirte config to configPath
+function writeConfig(config,callback) {
+    fs.writeFile(configPath, JSON.stringify(config), function (err, data) {
+      if (err) {
+        console.error('写入环境配置出错', err);
+      } else
+        console.log('写入环境配置到 %s', configPath);
+    });
+}
+
+// 3. write token to *.token.json file
+function writeToken(key, token, callback) {  
+  var tokenPath = home + '/'+key+'.token.json';
+  console.log('tokenPath',tokenPath);
+  fs.writeFile(tokenPath, JSON.stringify(token), function (err, data) {
+    console.log('write token ', token);
+    callback(err, tokenPath);
+  });
+}
+
+// 4. writeResult function
+function writeResult(path, data, callback) {
+  fs.writeFile(path, JSON.stringify(data, null, 2), function (err, result) {
+    console.log('write data ', data);
+    if (callback) {
+      callback(err, result);
+    }
+  });
+}
+
+
+
+// commands 
+//  config command
 program
 .command('configure <appkey> <appsecret> [name]')
 .alias('co')
 .description('命令行工具环境配置')
 .option('-a, --apiurl <mode>', 'API服务器地址')
 .option('-o, --oauthurl <mode>', '认证服务器地址')
-.action(function (appkey, appsecret, name,options) {
+.action(function (appkey, appsecret, name, options) {
 
   function writeAppConfig(callback) {
 
@@ -125,37 +169,10 @@ program
     console.log('    $ lcp co appkey appsecret testapp');
     console.log('    $ lcp co appkey appsecret -o https://oauth.lycam.tv -a https://api.lycam.tv');
     console.log();
-  });;
-
-function getClient() {
-  var clientConfig = config.apps[config.currentApp];
-  // console.log("clientConfig",clientConfig);
-  var lycamplus = new lycamplusjs(clientConfig);
-  lycamplus.token  = token;
-  return lycamplus;
-}
-function writeConfig(config,callback) {
-
-    fs.writeFile(configPath, JSON.stringify(config), function (err, data) {
-      if (err) {
-        console.error('写入环境配置出错', err);
-      } else
-        console.log('写入环境配置到 %s', configPath);
-    });
-}
-
-function writeToken(key,token, callback) {
-  
-  var tokenPath = home + '/'+key+'.token.json';
-  console.log('tokenPath',tokenPath);
-  fs.writeFile(tokenPath, JSON.stringify(token), function (err, data) {
-    console.log('write token ', token);
-    callback(err, tokenPath);
-    
-    
   });
-}
 
+// sdk
+// login command
 program
   .command('login <username> <password>')
   .alias('lo')
@@ -182,7 +199,6 @@ program
             config.apps[config.currentApp].users[username] = tokenPath;
             config.apps[config.currentApp].currentUser = username;
             
-
             writeConfig(config,function(err,data){
               
             });
@@ -195,37 +211,58 @@ program
   }).on('--help', function () {
     console.log('  Examples:');
     console.log();
-    console.log('    $ login useranem password');
+    console.log('    $ lcp login username password');
+    console.log();
+  });
+
+
+// account logout
+program
+  .command('logout')
+  .alias('lg')
+  .description('注销账户')
+  .action(function(options) {
+    console.log(options);
+    console.log('注销账户');
+    getClient().account.logout(function(err, data) {
+      if (err) {
+        console.error(err);
+        return;
+      }
+      fs.unlink(tokenPath, function(err) {
+        if (err) {
+          console.error(err);
+        } else {
+          console.log(data);
+        }
+      });
+    });
+  })
+  .on('--help', function() {
+    console.log('  Examples:');
+    console.log();
+    console.log('    $ lcp logout');
     console.log();
   });
 
 
 
-
-function writeResult(path, data, callback) {
-  fs.writeFile(path, JSON.stringify(data, null, 2), function (err, result) {
-    console.log('write data ', data);
-    if (callback) {
-      callback(err, result);
-    }
-  });
-}
+//  message command
 program
   .command('msg <cmd> [param1] [param2] [param3]')
   .alias('m')
   .description('消息管理')
   .option('-o, --output <file>', '输出文件名')
-  .action(function (cmd,param1,param2,param3, options) {
+  .action(function (cmd, param1, param2, param3, options) {
     console.log('exec  using %s mode', options.output);
     if (cmd == 'chat') {
       var topic = param1;
       var msg = param2;
-      
-      getClient().gift.chat(topic,msg, function (err, data) {
+      getClient().gift.chat(topic, msg, function (err, data) {
         if (err) {
           console.error(err);
         }
-        console.log("send chat to:"+topic,msg);
+        console.log("send chat to:"+topic, msg);
 
         console.log(data);
       });
@@ -240,12 +277,13 @@ program
   });
 
 
+//  gift command
 program
   .command('gift <cmd> [param1] [param2] [param3]')
   .alias('gi')
   .description('礼物管理')
   .option('-o, --output <file>', '输出文件名')
-  .action(function (cmd,param1,param2,param3, options) {
+  .action(function (cmd, param1, param2, param3, options) {
     console.log('exec  using %s mode', options.output);
     if (cmd == 'list') {
       getClient().gift.list({}, function (err, data) {
@@ -284,6 +322,8 @@ program
     console.log();
   });
 
+
+//  account command
 program
   .command('account <cmd> [params]')
     //短命令 - 简写方式')
@@ -296,28 +336,65 @@ program
         if (err) {
           console.error(err);
         }
-
-        var path = options.output;
-        if (path) {
-          var  file = path;
-          writeResult(file, data, function (err, result) {
-            console.log('write result to file:', file);
-          });
+        output(options, data);   
+      });
+    } else if (cmd == 'update') {
+      // todo
+      getClient().account.update(params, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
         }
-
-        console.log(data);
+       output(options, data);     
+      });
+    } else if (cmd == 'deposit') {
+      console.log('账户充值');
+      getClient().account.deposit(params, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options, data);
+      });
+    } else if (cmd == 'balance') {
+      console.log('获取余额');
+      getClient().account.balance(function(err, data) {
+        if (err) {
+          console.log('ee');
+          console.error(err);
+          return;
+        }
+        output(options, data);
       });
     } else {
       console.log('unknown cmd %s', cmd);
+    }
+
+
+    function output(options, data) {
+       var path = options.output;
+      if (path) {
+        var  file = path;
+        writeResult(file, data, function (err, result) {
+          console.log('write result to file:', file);
+        });
+      }
+
+      console.log(data);
     }
 
   }).on('--help', function () {
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp a show');
+    console.log('    $ lcp a update 12345678');
+    console.log('    $ lcp a deposit 500');
+    console.log('    $ lcp a balance')
     console.log();
   });
 
+
+//  app command
 program
   .command('app <cmd> [params]')
     //短命令 - 简写方式')
@@ -358,8 +435,7 @@ program
   });
 
 
- 
-
+//  stream command
 //像git风格一样的子命令
 program
     //子命令
@@ -477,4 +553,6 @@ program
     console.log();
   });
 
+
+// argv
 program.parse(process.argv);
