@@ -104,6 +104,19 @@ function writeResult(path, data, callback) {
   });
 }
 
+// 5. output function 
+function output(options, data) {
+  var path = options.output;
+  if (path) {
+    var  file = path;
+    writeResult(file, data, function (err, result) {
+    console.log('write result to file:', file);
+  });
+}
+
+console.log(data);
+}
+
 
 
 // commands 
@@ -222,8 +235,7 @@ program
   .alias('lg')
   .description('注销账户')
   .action(function(options) {
-    console.log(options);
-    console.log('注销账户');
+    console.log(' 注销账户');
     getClient().account.logout(function(err, data) {
       if (err) {
         console.error(err);
@@ -248,6 +260,7 @@ program
 
 
 //  message command
+// todo (gift ???? )
 program
   .command('msg <cmd> [param1] [param2] [param3]')
   .alias('m')
@@ -289,17 +302,9 @@ program
       getClient().gift.list({}, function (err, data) {
         if (err) {
           console.error(err);
+          return;
         }
-
-        var path = options.output;
-        if (path) {
-          var  file = path;
-          writeResult(file, data, function (err, result) {
-            console.log('write result to file:', file);
-          });
-        }
-
-        console.log(data);
+        output(options, data);
       });
     }
     else if(cmd=="send"){
@@ -327,40 +332,171 @@ program
 program
   .command('account <cmd> [params]')
     //短命令 - 简写方式')
-  .alias('a')
+  .alias('at')
   .description('用户账户管理')
   .option('-o, --output <file>', '输出文件名')
+  .option('-r, --rows <mode>', '每页纪录数')
+  .option('-p, --page <mode>', '返回第几页')
+  .option('-s, --sort <mode>', '排序字段(id,name,created)')
+  .option('-d, --order <mode>', '排序方向<asc,desc>')
+  .option('-u, --uuid <required>', '用户uuid')
+  .option('-a, --active <required>', '激活状态')
+  .option('--username <required>', '用户名6-80位，如果为空将随机生成')
+  .option('--password <required>', '用户密码，大于等于8位，如果为空将随机生成')
+  .option('--email <required>', '邮件地址')
+  .option('--phone <required>', '手机号码11-20位')
+  .option('--description <required>', '描述')
+  .option('--displayName <required>', '显示的昵称，2-20位，可以为空')
+  .option('--metaInfo <required>', '自定义用户信息，格式为json')
   .action(function (cmd, params, options) {
-    if (cmd == 'show') {
+    if (cmd == 'create') {
+      console.log(' 创建用户');
+      
+      // make json object
+      var paramsObject = {};
+      options.username && (paramsObject['username']=options.username);
+      options.password && (paramsObject['password']=options.password);
+      options.email && (paramsObject['email']=options.email);
+      options.phone && (paramsObject['phone']=options.phone);
+      options.description && (paramsObject['description']=options.description);
+      options.displayName && (paramsObject['displayName']=options.displayName);
+      options.metaInfo && (paramsObject['metaInfo']=options.metaInfo);
+
+      getClient().user.create(paramsObject, function(err, data) {
+        if (err) {
+          console.error(err)
+          return;
+        }
+        output(options, data);
+      });
+
+    } else if (cmd == 'search') {
+      console.log('  搜索用户');
+
+      var paramsObject = {};
+      options.username && (paramsObject['username']=options.username);
+      options.phone && (paramsObject['phone']=options.phone);
+      options.rows && (paramsObject['resultsPerPage']=options.rows);
+      options.page && (paramsObject['page']=options.page);
+      options.sort && (paramsObject['sort']=options.sort);
+      options.order && (paramsObject['order']=options.order);
+
+      getClient().user.search(paramsObject, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options, data);
+      })
+
+    } else if (cmd == 'list') {
+      console.log(' 获取用户列表');
+      if (params) {
+          getClient().user.listSince(params, 10, function(err, data) {
+            if (err) {
+              console.error(err);
+              return;
+            }
+            output(options, data);
+          });
+      } else {
+          getClient().user.list({}, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          output(options, data);
+        });
+      }
+    } else if (cmd == 'assume') {
+      console.log(' 获取用户授权token');
+      if (!options.uuid) {
+        console.error('  获取token需要参数uuid');
+        return;
+      }
+      getClient().user.assumeUser(options.uuid, '*', '360000', function(err, data) {
+        if (err) {
+          console.error(error);
+          return;
+        }
+        output(options, data);
+      });
+    } else if (cmd == 'show') {
+      console.log(' 查询账户信息');
       getClient().account.show(function (err, data) {
         if (err) {
           console.error(err);
         }
         output(options, data);   
       });
-    } else if (cmd == 'update') {
-      // todo
-      getClient().account.update(params, function(err, data) {
+    } else if (cmd == 'passwd') {
+      console.log(' 修改账户密码');
+      if (!options.uuid || !options.password) {
+        console.error('需要提供uuid和新密码');
+        return;
+      }
+      getClient().user.updatePassword(options.uuid, options.password, function(err, data) {
         if (err) {
           console.error(err);
           return;
         }
-       output(options, data);     
+
+        output(options, data);
       });
-    } else if (cmd == 'deposit') {
-      console.log('账户充值');
-      getClient().account.deposit(params, function(err, data) {
+    } else if (cmd == 'upuser') {
+      console.log(' 更新用户细节信息');
+
+      if (!options.uuid) {
+        console.error(' 必须指定一个uuid');
+        return;
+      }
+
+      var paramsObject = {};
+      options.active && (paramsObject['active']=options.active);
+      options.email && (paramsObject['email']=options.email);
+      options.phone && (paramsObject['phone']=options.phone);
+      options.description && (paramsObject['description']=options.description);
+      options.displayName && (paramsObject['displayName']=options.displayName);
+      options.metaInfo && (paramsObject['metaInfo']=options.metaInfo);
+
+      getClient().user.update(options.uuid, paramsObject, function(err, data) {
         if (err) {
           console.error(err);
           return;
         }
         output(options, data);
       });
+    } else if (cmd == 'upacc') {
+
+      console.log(' 更新账户信息');
+      var paramsObject = {};
+      
+      options.description && (paramsObject['description']=options.description);
+      options.displayName && (paramsObject['displayName']=options.displayName);
+
+      getClient().account.update(paramsObject, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+       output(options, data);     
+      });
+
+    } else if (cmd == 'deposit') {
+
+      console.log(' 账户充值');
+      getClient().account.deposit({money: params}, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options, data);
+      });
+
     } else if (cmd == 'balance') {
-      console.log('获取余额');
+      console.log(' 获取余额');
       getClient().account.balance(function(err, data) {
         if (err) {
-          console.log('ee');
           console.error(err);
           return;
         }
@@ -370,26 +506,40 @@ program
       console.log('unknown cmd %s', cmd);
     }
 
-
-    function output(options, data) {
-       var path = options.output;
-      if (path) {
-        var  file = path;
-        writeResult(file, data, function (err, result) {
-          console.log('write result to file:', file);
-        });
-      }
-
-      console.log(data);
-    }
-
   }).on('--help', function () {
+    console.log();
+    console.log('  Cmds:');
+    console.log();
+    console.log('    create [--username] [--password] [--email] [--phone]');
+    console.log('           [--description] [--displayName]');
+    console.log('           [--metaInfo]                        创建用户');
+    console.log('    search [--username] [--phone] [-r] [-p] [-d]')
+    console.log('                                               搜索用户');
+    console.log('    list [timestamp]                           获取用户列表')
+    console.log('    assume <token>                             获取用户授权token');
+    console.log('    passwd <-u> <--password>                   更新用户密码');
+    console.log('    upuser <-u> [-c] [--phone] [--email] [--description]');
+    console.log('           [--displayName] [--metaInfo]        更新用户细节信息');
+    console.log('    show                                       获取账户信息');           
+    console.log('    upacc [--description] [--displayName]      更新账户信息');
+    console.log('    deposit <money>                            充值');
+    console.log('    balance                                    获取余额');
+    console.log();
     console.log('  Examples:');
     console.log();
-    console.log('    $ lcp a show');
-    console.log('    $ lcp a update 12345678');
-    console.log('    $ lcp a deposit 500');
-    console.log('    $ lcp a balance')
+    console.log('    $ lcp at create --username BlueSmith --password 12345678');
+    console.log('                     --metaInfo {avatarUrl:"profile.png"}');
+    console.log('    $ lcp at search --phone 15928753685 -d desc');
+    console.log('    $ lcp at list 0');
+    console.log('    $ lcp at assume 4fa95980-763d-11e6-9610-f5df51643a4d');
+    console.log('    $ lcp at passwd -u 4fa95980-763d-11e6-9610-f5df51643a4d');
+    console.log('                     --password 12345678');
+    console.log('    $ lcp at upuser -u 4fa95980-763d-11e6-9610-f5df51643a4d');
+    console.log('                     -email 66@gmail.com')
+    console.log('    $ lcp at show');
+    console.log('    $ lcp at upacc --description 1234 --displayName 5678');
+    console.log('    $ lcp at deposit 500');
+    console.log('    $ lcp at balance')
     console.log();
   });
 
@@ -428,6 +578,7 @@ program
     }
 
   }).on('--help', function () {
+    console.log();
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp app list');
@@ -448,28 +599,129 @@ program
     .option('-o, --output <mode>', '输出文件名')
     .option('-n, --rows <mode>', '每页纪录数')
     .option('-i, --index <mode>', '第几条纪录')
+    .option('-p, --page <mode>', '返回第几页')
+    .option('-s, --sort <mode>', '排序字段(id,description,created)')
+    .option('-d, --order <mode>', '排序方向<asc,desc>')
+    .option('--uuid <mode>', '视频的创建用户uuid')
+    .option('--lat <mode>', '开始视频的维度坐标')
+    .option('--lon <mode>', '开始视频的经度坐标')
+    .option('--city <mode>', '城市')
+    .option('--state <mode>', '省份')
+    .option('--country <mode>', '国家')
+    .option('--privacy <mode>', '是否私有视频')
+    .option('--title <model>', '标题，2-32位')
+    .option('--description <mode>.', '视频描述，2-160位')
+    .option('--thumbnail <mode>', '视频封面图片 URL')
+    .option('--extra <mode>', '自定义json格式用户信息')
     // .option('-k, --keyword <mode>', '关键字')
     //注册一个callback函数
     .action(function (cmd, params, options) {
 
-      if (cmd == 'search') {
+      if (cmd == 'create') {
+        console.log('  创建视频流');
+
+         var paramsObject = {};
+         options.uuid && (paramsObject['uuid'] = options.uuid);
+         options.lat && (paramsObject['startLat'] = options.lat);
+         options.lon && (paramsObject['startLon'] = options.startLon);
+         options.city && (paramsObject['city'] = options.city);
+         options.state && (paramsObject['state'] = options.state);
+         options.country && (paramsObject['country'] = options.country);
+         options.privacy && (paramsObject['privacy'] = options.privacy);
+         options.title && (paramsObject['title'] = options.title);
+         options.description && (paramsObject['description'] = options.description);
+         options.thumbnail && (paramsObjectp['thumbnailUrl'] = options.thumbnail);
+         options.extra && (paramsObject['extraInfo'] = options.extra);
+         
+         getClient().stream.create(paramsObject, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          output(options, data);
+        });
+
+      } else if (cmd == 'update') {
+
+         if (!params) {
+           console.error('  请指定一个stream_id');
+           return;
+         }
+
+         var paramsObject = {};
+         options.lat && (paramsObject['startLat'] = options.lat);
+         options.lon && (paramsObject['startLon'] = options.startLon);
+         options.city && (paramsObject['city'] = options.city);
+         options.state && (paramsObject['state'] = options.state);
+         options.country && (paramsObject['country'] = options.country);
+         options.privacy && (paramsObject['privacy'] = options.privacy);
+         options.title && (paramsObject['title'] = options.title);
+         options.description && (paramsObject['description'] = options.description);
+         options.thumbnail && (paramsObjectp['thumbnailUrl'] = options.thumbnail);
+         options.extra && (paramsObject['extraInfo'] = options.extra);
+
+
+         getClient().stream.update(params, paramsObject, function(err, data) {
+           if (err) {
+             console.error(err);
+             return;
+            }
+            output(options, data);
+         });
+        
+        console.log(' 更新视频信息');
+
+      } else if (cmd == 'list') {
+        var resultsPerPage = options.rows || 10;
+        var page = options.page || 1;
+        var sort = options.sort || 'id';
+        var order = options.order || 'desc';
+        console.log('获取用户视频流列表, 当前显示第%d页，每页显示%d条记录，按照`%s`排序，排序方式为`%s`', page, resultsPerPage, sort, order);
+        getClient().stream.list({resultsPerPage: resultsPerPage, page: page, sort: sort, order: order}, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          output(options, data);
+        });
+      } else if (cmd == 'show') {
+        console.log(' 查看指定id视频流');
+        if (!params) {
+          console.error('请指定一个stream_id');
+          return;
+        }
+        getClient().stream.show(params, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+
+          output(options, data);
+        });
+
+      } else if (cmd == 'lsince') {
+        console.log('  获取指定时间前视频流列表');
+        if (!params) {
+          console.error('  请指定timestamp');
+          return;
+        }
+        getClient().stream.listSince(params, options.rows || 10, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          output(options, data);
+        });
+
+      } else if (cmd == 'search') {
         var resultsPerPage = options.rows || 10;
         var keyword = params || '';
-        console.log('search streams  resultsPerPage %s %s', resultsPerPage, keyword);
+        console.log('search streams resultsPerPage %s %s', resultsPerPage, keyword);
         getClient().stream.search({ keyword: keyword, resultsPerPage: resultsPerPage }, function (err, data) {
           if (err) {
             console.error(err);
           }
-
-          var path = options.output;
-          if (path) {
-            var  file = path;
-            writeResult(file, data, function (err, result) {
-              console.log('write result to file:', file);
-            });
-          }
-
-          console.log(data);
+          output(options, data);
         });
       } 
       else if (cmd == 'open') {
@@ -494,9 +746,8 @@ program
             console.log("index:",index);
             exec(cmd, function callback(error, stdout, stderr) { 
               console.log(stdout);
-            })
+            });
 
-          
           }
         });
       } 
@@ -508,16 +759,7 @@ program
           if (err) {
             console.error(err);
           }
-
-          var path = options.output;
-          if (path) {
-            var  file = path;
-            writeResult(file, data, function (err, result) {
-              console.log('write result to file:', file);
-            });
-          }
-
-          console.log(data);
+          output(options, data);
         });
       } 
       else if (cmd == 'stop') {
@@ -528,29 +770,56 @@ program
           if (err) {
             console.error(err);
           }
-
-          var path = options.output;
-          if (path) {
-            var  file = path;
-            writeResult(file, data, function (err, result) {
-              console.log('write result to file:', file);
-            });
-          }
-
-          console.log(data);
+          output(options, data);
         });
-      } 
-      else {
+      } else if (cmd == 'delete') {
+        
+        console.log(' 删除视频流');
+        if (!params) {
+          console.error(' 请指定一个stream_id');
+          return;
+        }
+        getClient().stream.destroy(params, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          output(options, data);
+        });
+      } else {
         console.log('unknown cmd %s', cmd);
       }
 
     }).on('--help', function () {
-    console.log('  Examples:');
-    console.log();
-    console.log('    $ lcp st search test -n 5');
-    console.log('    $ lcp st open test -i 0');
-
-    console.log();
+      console.log();
+      console.log('  Cmds:');
+      console.log();
+      console.log('    create [--uuid] [--lat] [--lon] [--city]');
+      console.log('           [--state] [--country] [--privacy]');
+      console.log('           [--title] [--description] [--thumbnail]');
+      console.log('           [--extra]             创建视频流');
+      console.log('    update <stream_id>  [--lat] [--lon] [--city]');
+      console.log('           [--state] [--country] [--privacy]');
+      console.log('           [--title] [--description] [--thumbnail]');
+      console.log('           [--extra]             更新视频流');
+      console.log('    list   [-n] [-p] [-s] [-d]   获取用户视频流列表');
+      console.log('    lsince <timestamp> [-n]      获取指定时间前视频流列表')
+      console.log('    show   <stream_id>           查看指定id视频');
+      console.log('    search [-n] [keyword]        视频搜索');
+      console.log('    open   [-i] [-n] [keyword]   打开视频流');
+      console.log('    delete <stream_id>           删除指定id视频');
+      console.log();
+      console.log('  Examples:');
+      console.log();
+      console.log('    $ lcp st create');
+      console.log('    $ lcp st list');
+      console.log('    $ lcp st lsince 0 -n 10');
+      console.log('    $ lcp st update 8201f580-7670-11e6-9961-013afbd5c525 --title hello');
+      console.log('    $ lcp st show 8201f580-7670-11e6-9961-013afbd5c525');
+      console.log('    $ lcp st search test -n 5');
+      console.log('    $ lcp st open test -i 0');
+      console.log('    $ lcp st delete c86b0af0-766d-11e6-a535-1b9eb3833833');
+      console.log();
   });
 
 
