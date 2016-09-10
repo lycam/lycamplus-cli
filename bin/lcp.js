@@ -6,6 +6,7 @@ var exec = require('child_process').exec;
 var lycamplusjs = require('lycamplusjs');
 var appInfo = require('./../package.json');
 
+
 function getUserHome() {
   return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 }
@@ -261,6 +262,7 @@ program
 
 //  message command
 // todo (gift ???? )
+
 program
   .command('msg <cmd> [param1] [param2] [param3]')
   .alias('m')
@@ -326,6 +328,8 @@ program
     console.log('    $ lcp gift send 9aa1bf90-1f5d-11e6-ba5e-c56c2a8bfd5d myVideo:dev-3b11e871-39fc-11e6-bac4-9f0d0e18eaa6 1');
     console.log();
   });
+
+
 
 
 //  account command
@@ -469,8 +473,8 @@ program
     } else if (cmd == 'upacc') {
 
       console.log(' 更新账户信息');
-      var paramsObject = {};
       
+      var paramsObject = {};
       options.description && (paramsObject['description']=options.description);
       options.displayName && (paramsObject['displayName']=options.displayName);
 
