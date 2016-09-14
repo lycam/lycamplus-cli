@@ -1,6 +1,6 @@
 {
   "name": "lycamplus-cli",
-  "version": "0.1.13",
+  "version": "0.1.15",
   "description": "command client for lycamplus",
   "main": "index.js",
   "bin": { "lcp": "bin/lcp.js" },
@@ -15,12 +15,12 @@
     "url": "https://github.com/lycam/lycamplus-cli.git"
   },
   "dependencies": {
-    "lycamplusjs": "~0.5.3",
+    "lycamplusjs": "~0.5.7",
     "lodash": "v2.4.1",
     "async": "~1.5.0",
     "commander": "~2.9.0",
      "mqtt":"~1.8.0",
-   
+  
     "log4js": "~0.6.15"
   }
 }
