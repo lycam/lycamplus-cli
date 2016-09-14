@@ -106,16 +106,15 @@ function writeResult(path, data, callback) {
 }
 
 // 5. output function 
-function output(options, data) {
-  var path = options.output;
+function output(path, data) {
   if (path) {
-    var  file = path;
-    writeResult(file, data, function (err, result) {
-    console.log('write result to file:', file);
-  });
-}
+        var  file = path;
+        writeResult(file, data, function (err, result) {
+        console.log('write result to file:', file);
+    });
+  }
 
-console.log(data);
+  console.log(data);
 }
 
 
@@ -260,34 +259,91 @@ program
 
 
 
-//  message command
-// todo (gift ???? )
-
+// message command
 program
-  .command('msg <cmd> [param1] [param2] [param3]')
+  .command('msg <cmd> [param1] [param2]')
   .alias('m')
   .description('消息管理')
   .option('-o, --output <file>', '输出文件名')
-  .action(function (cmd, param1, param2, param3, options) {
+  .option('-a, --metaInfo <mode>', '额外信息')
+  .action(function (cmd, param1, param2, options) {
     console.log('exec  using %s mode', options.output);
     if (cmd == 'chat') {
+      console.log('发送消息');
       var topic = param1;
       var msg = param2;
-      getClient().gift.chat(topic, msg, function (err, data) {
+      getClient().msg.chat(topic, msg, function (err, data) {
         if (err) {
           console.error(err);
         }
-        console.log("send chat to:"+topic, msg);
-
-        console.log(data);
+        output(options.output, data);
       });
+    } else if (cmd === 'like') {
+      console.log(' 点赞');
+      var topic = param1;
+      getClient().msg.like(topic, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        } 
+        output(options.output, data);
+      });
+
+    } else if (cmd === 'barrage') {
+      console.log('发送弹幕');
+      
+      getClient().msg.barrage(param1, param2, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options.output, data);
+      });
+
+    } else if (cmd === "customize") {
+      console.log('发送自定义消息');
+      var topic = param1;
+      var type = param2;
+      var metaInfo = options.metaInfo || '';
+
+      getClient().msg.customize(topic, type, metaInfo, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options.output, data);
+      });
+
+    } else if (cmd === 'clients') {
+      console.log('获取client在线数量');
+      getClient().msg.clientCount(param1, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options.output, data);
+      });
+    } else {
+      console.log('unknown cmd %s', cmd);
     }
 
   }).on('--help', function () {
+    console.log();
+    console.log('  Commands:');
+    console.log();
+    console.log('    chat <channel> <msg> [-a]      发送消息');
+    console.log('    like <topic>                   点赞');
+    console.log('    barrage <topic> <msg>          弹幕');
+    console.log('    customize <topic> <type> [-a]  自定义消息');
+    console.log('    clients <topic>                获取在线用户数');
+    console.log();
     console.log('  Examples:');
     console.log();
-    console.log('    $ lcp gift');
-    console.log('    $ lcp gift send 9aa1bf90-1f5d-11e6-ba5e-c56c2a8bfd5d myVideo:dev-3b11e871-39fc-11e6-bac4-9f0d0e18eaa6 1');
+    console.log('   $ lcp msg chat room/channeId `你好` -a {date: 2016-06-03}');
+    console.log('   $ lcp msg like room/channeId');
+    console.log('   $ lcp msg barrage room/channeId hello');
+    console.log('   $ lcp msg customize room/channeId 1 -a {phone: `85869635`}');
+    console.log('   $ lcp msg clients room/channel1');
     console.log();
   });
 
@@ -298,18 +354,21 @@ program
   .alias('gi')
   .description('礼物管理')
   .option('-o, --output <file>', '输出文件名')
+  .option('-s, --sort <mode>', '排序字段(sum,time，默认time)')
+  .option('-d, --order <mode>', '排序方向(asc,desc，默认 desc)')
   .action(function (cmd, param1, param2, param3, options) {
     console.log('exec  using %s mode', options.output);
     if (cmd == 'list') {
-      getClient().gift.list({}, function (err, data) {
+      console.log('获取礼物清单');
+      getClient().gift.gifts(function (err, data) {
         if (err) {
           console.error(err);
           return;
         }
-        output(options, data);
+        output(options.output, data);
       });
-    }
-    else if(cmd=="send"){
+    } else if(cmd=="send"){
+      console.log('发送礼物');
       var receiver = param1;
       var topic = param2;
       var giftId = param3;
@@ -319,13 +378,58 @@ program
         }
         console.log(data);
       });
-    }
+    } else if (cmd === 'records') {
+      console.log('获取用户交易记录');
+
+      var rows = param1;
+      var type = param2;
+      var page = param3;
+      var paramsObject = {};
+      options.order && (paramsObject['order'] = options.order);
+      options.sort && (paramsObject['sort'] = options.sort);
+
+      getClient().gift.record(rows, type, page, 
+            paramsObject,function(err, data) {
+              if (err) {
+                console.error(err);
+                return;
+              }
+              console.log(data);
+      });
+    } else if (cmd === 'contributors') { 
+      console.log('礼物贡献者');
+
+      var resultsPerPage = param1;
+      var page = param2;
+
+      getClient().gift.contributors(resultsPerPage, page, function(eer,  data) {
+        if (err) {
+          console.error(err);
+          return;
+        } 
+        console.log(data);
+      });
+
+    } else {
+       console.log('unknown cmd %s', cmd);
+    } 
 
   }).on('--help', function () {
+    console.log();
+    console.log(' Commands:');
+    console.log();
+    console.log('   list                                  获取礼物清单');
+    console.log('   send <giftId> <receiver> <streamId>   发送礼物');
+    console.log('   records <resultsPerPage> <type> ');
+    console.log('           <page> [-s] [-o]              获取用户交易记录');
+    console.log('   contributors <resultsPerPage> <page>  礼物贡献者');
+    console.log();
     console.log('  Examples:');
     console.log();
-    console.log('    $ lcp gift');
+    console.log('    $ lcp gift list');
     console.log('    $ lcp gift send 9aa1bf90-1f5d-11e6-ba5e-c56c2a8bfd5d myVideo:dev-3b11e871-39fc-11e6-bac4-9f0d0e18eaa6 1');
+    console.log('    $ lcp gift records 10 1 1');
+    console.log('    $ lcp gift contributors 10 1');
     console.log();
   });
 
@@ -334,7 +438,7 @@ program
 
 //  account command
 program
-  .command('account <cmd> [params]')
+  .command('account <cmd> [param1] [param2]')
     //短命令 - 简写方式')
   .alias('at')
   .description('用户账户管理')
@@ -352,7 +456,7 @@ program
   .option('--description <required>', '描述')
   .option('--displayName <required>', '显示的昵称，2-20位，可以为空')
   .option('--metaInfo <required>', '自定义用户信息，格式为json')
-  .action(function (cmd, params, options) {
+  .action(function (cmd, param1, param2, options) {
     if (cmd == 'create') {
       console.log(' 创建用户');
       
@@ -371,14 +475,14 @@ program
           console.error(err)
           return;
         }
-        output(options, data);
+        output(options.output, data);
       });
 
     } else if (cmd == 'search') {
       console.log('  搜索用户');
 
       var paramsObject = {};
-      options.username && (paramsObject['username']=options.username);
+      param1 && (paramsObject['username']=param1);
       options.phone && (paramsObject['phone']=options.phone);
       options.rows && (paramsObject['resultsPerPage']=options.rows);
       options.page && (paramsObject['page']=options.page);
@@ -390,18 +494,18 @@ program
           console.error(err);
           return;
         }
-        output(options, data);
+        output(options.output, data);
       })
 
     } else if (cmd == 'list') {
       console.log(' 获取用户列表');
-      if (params) {
-          getClient().user.listSince(params, 10, function(err, data) {
+      if (param1) {
+          getClient().user.listSince(param1, 10, function(err, data) {
             if (err) {
               console.error(err);
               return;
             }
-            output(options, data);
+            output(options.output, data);
           });
       } else {
           getClient().user.list({}, function(err, data) {
@@ -409,7 +513,7 @@ program
             console.error(err);
             return;
           }
-          output(options, data);
+          output(options.output, data);
         });
       }
     } else if (cmd == 'assume') {
@@ -423,7 +527,7 @@ program
           console.error(error);
           return;
         }
-        output(options, data);
+        output(options.output, data);
       });
     } else if (cmd == 'show') {
       console.log(' 查询账户信息');
@@ -431,7 +535,7 @@ program
         if (err) {
           console.error(err);
         }
-        output(options, data);   
+        output(options.output, data);  
       });
     } else if (cmd == 'passwd') {
       console.log(' 修改账户密码');
@@ -445,7 +549,7 @@ program
           return;
         }
 
-        output(options, data);
+        output(options.output, data);
       });
     } else if (cmd == 'upuser') {
       console.log(' 更新用户细节信息');
@@ -468,7 +572,7 @@ program
           console.error(err);
           return;
         }
-        output(options, data);
+        output(options.output, data);
       });
     } else if (cmd == 'upacc') {
 
@@ -483,18 +587,18 @@ program
           console.error(err);
           return;
         }
-       output(options, data);     
+       output(options.output, data);    
       });
 
     } else if (cmd == 'deposit') {
 
       console.log(' 账户充值');
-      getClient().account.deposit({money: params}, function(err, data) {
+      getClient().account.deposit({money: param1}, function(err, data) {
         if (err) {
           console.error(err);
           return;
         }
-        output(options, data);
+        output(options.output, data);
       });
 
     } else if (cmd == 'balance') {
@@ -504,7 +608,25 @@ program
           console.error(err);
           return;
         }
-        output(options, data);
+        output(options.output, data);
+      });
+    } else if (cmd == 'withdraw') {
+      console.log('提现');
+      getClient().account.withdraw(param1, function(err, data) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        output(options.output, data);
+      });
+    } else if (cmd == 'transfer') {
+      console.log('转账');
+      getClient().account.transfer(param1, param2, function(err, data) {
+        if (err) {
+          console.error(error);
+          return;
+        }
+        output(options.output, data);
       });
     } else {
       console.log('unknown cmd %s', cmd);
@@ -512,28 +634,30 @@ program
 
   }).on('--help', function () {
     console.log();
-    console.log('  Cmds:');
+    console.log('  Commands:');
     console.log();
-    console.log('    create [--username] [--password] [--email] [--phone]');
-    console.log('           [--description] [--displayName]');
-    console.log('           [--metaInfo]                        创建用户');
-    console.log('    search [--username] [--phone] [-r] [-p] [-d]')
-    console.log('                                               搜索用户');
-    console.log('    list [timestamp]                           获取用户列表')
+    console.log('    create [--username] [--password] [--email]');
+    console.log('           [--description] [--phone]');
+    console.log('           [--displayName] [--metaInfo]        创建用户');
+    console.log('    search [username] [--phone] [-r] [-p] [-d] 搜索用户');
+    console.log('    list [timestamp]                           获取用户列表(0代表最新)')
     console.log('    assume <token>                             获取用户授权token');
     console.log('    passwd <-u> <--password>                   更新用户密码');
-    console.log('    upuser <-u> [-c] [--phone] [--email] [--description]');
-    console.log('           [--displayName] [--metaInfo]        更新用户细节信息');
+    console.log('    upuser <-u> [-c] [--phone] [--description]');
+    console.log('           [--email] [--displayName]'); 
+    console.log('           [--metaInfo]                        更新用户细节信息');
     console.log('    show                                       获取账户信息');           
     console.log('    upacc [--description] [--displayName]      更新账户信息');
     console.log('    deposit <money>                            充值');
     console.log('    balance                                    获取余额');
+    console.log('    withdraw <money>                           提现');
+    console.log('    transfer <receiverId> <money>              转账');
     console.log();
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp at create --username BlueSmith --password 12345678');
     console.log('                     --metaInfo {avatarUrl:"profile.png"}');
-    console.log('    $ lcp at search --phone 15928753685 -d desc');
+    console.log('    $ lcp at search tester --phone 15928753685 -d desc');
     console.log('    $ lcp at list 0');
     console.log('    $ lcp at assume 4fa95980-763d-11e6-9610-f5df51643a4d');
     console.log('    $ lcp at passwd -u 4fa95980-763d-11e6-9610-f5df51643a4d');
@@ -543,7 +667,9 @@ program
     console.log('    $ lcp at show');
     console.log('    $ lcp at upacc --description 1234 --displayName 5678');
     console.log('    $ lcp at deposit 500');
-    console.log('    $ lcp at balance')
+    console.log('    $ lcp at balance');
+    console.log('    $ lcp at withdraw 100');
+    console.log('    $ lcp at transfer abcd1234 100');
     console.log();
   });
 
@@ -606,6 +732,7 @@ program
     .option('-p, --page <mode>', '返回第几页')
     .option('-s, --sort <mode>', '排序字段(id,description,created)')
     .option('-d, --order <mode>', '排序方向<asc,desc>')
+    .option('-r, --radius <model>', '搜索半径')
     .option('--uuid <mode>', '视频的创建用户uuid')
     .option('--lat <mode>', '开始视频的维度坐标')
     .option('--lon <mode>', '开始视频的经度坐标')
@@ -642,7 +769,7 @@ program
             console.error(err);
             return;
           }
-          output(options, data);
+          output(options.output, data);
         });
 
       } else if (cmd == 'update') {
@@ -670,7 +797,7 @@ program
              console.error(err);
              return;
             }
-            output(options, data);
+            output(options.output, data);
          });
         
         console.log(' 更新视频信息');
@@ -686,7 +813,7 @@ program
             console.error(err);
             return;
           }
-          output(options, data);
+         output(options.output, data);
         });
       } else if (cmd == 'show') {
         console.log(' 查看指定id视频流');
@@ -700,7 +827,7 @@ program
             return;
           }
 
-          output(options, data);
+          output(options.output, data);
         });
 
       } else if (cmd == 'lsince') {
@@ -714,7 +841,7 @@ program
             console.error(err);
             return;
           }
-          output(options, data);
+         output(options.output, data);
         });
 
       } else if (cmd == 'search') {
@@ -725,10 +852,29 @@ program
           if (err) {
             console.error(err);
           }
-          output(options, data);
+          output(options.output, data);
         });
-      } 
-      else if (cmd == 'open') {
+      } else if (cmd == 'location') {
+        console.log('地域搜索');
+        var paramsObject = {};
+        options.lat && (paramsObject['startLat'] = options.lat);
+        options.lon && (paramsObject['startLon'] = options.startLon);
+        options.radius && (paramsObject['radius'] = options.radius);
+        options.rows && (paramsObject['resultsPerPage'] = options.rows);
+        options.page && (paramsObject['page'] = options.page);
+        options.sort && (paramsObject['sort'] = options.sort);
+        options.order && (paramsObject['order'] = options.order);
+
+        getClient().stream.searchLocation(paramsObject, function(err, data) {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          output(options.output, data);
+        }); 
+        
+
+      } else if (cmd == 'open') {
         var resultsPerPage = options.rows || 10;
         var keyword = params || '';
         var index = options.index || 0;
@@ -763,7 +909,7 @@ program
           if (err) {
             console.error(err);
           }
-          output(options, data);
+          output(options.output, data);
         });
       } 
       else if (cmd == 'stop') {
@@ -774,7 +920,7 @@ program
           if (err) {
             console.error(err);
           }
-          output(options, data);
+          output(options.output, data);
         });
       } else if (cmd == 'delete') {
         
@@ -788,7 +934,7 @@ program
             console.error(err);
             return;
           }
-          output(options, data);
+         output(options.output, data);
         });
       } else {
         console.log('unknown cmd %s', cmd);
@@ -796,7 +942,7 @@ program
 
     }).on('--help', function () {
       console.log();
-      console.log('  Cmds:');
+      console.log('  Commands:');
       console.log();
       console.log('    create [--uuid] [--lat] [--lon] [--city]');
       console.log('           [--state] [--country] [--privacy]');
@@ -810,6 +956,8 @@ program
       console.log('    lsince <timestamp> [-n]      获取指定时间前视频流列表')
       console.log('    show   <stream_id>           查看指定id视频');
       console.log('    search [-n] [keyword]        视频搜索');
+      console.log('    location <--lon> <--lat> <-r>');
+      console.log('             [-s] [-d] [-n] [-p] 地域搜索');
       console.log('    open   [-i] [-n] [keyword]   打开视频流');
       console.log('    delete <stream_id>           删除指定id视频');
       console.log();
@@ -821,6 +969,7 @@ program
       console.log('    $ lcp st update 8201f580-7670-11e6-9961-013afbd5c525 --title hello');
       console.log('    $ lcp st show 8201f580-7670-11e6-9961-013afbd5c525');
       console.log('    $ lcp st search test -n 5');
+      console.log('    $ lcp st location -r 50 --lon 400 --lat 500');
       console.log('    $ lcp st open test -i 0');
       console.log('    $ lcp st delete c86b0af0-766d-11e6-a535-1b9eb3833833');
       console.log();
