@@ -388,7 +388,7 @@ program
       options.order && (paramsObject['order'] = options.order);
       options.sort && (paramsObject['sort'] = options.sort);
 
-      getClient().gift.record(rows, type, page, 
+      getClient().gift.records(rows, type, page, 
             paramsObject,function(err, data) {
               if (err) {
                 console.error(err);
@@ -399,10 +399,11 @@ program
     } else if (cmd === 'contributors') { 
       console.log('礼物贡献者');
 
-      var resultsPerPage = param1;
-      var page = param2;
+      var uuid = param1;
+      var resultsPerPage = param2;
+      var page = param3;
 
-      getClient().gift.contributors(resultsPerPage, page, function(eer,  data) {
+      getClient().gift.contributors(uuid, resultsPerPage, page, function(err,  data) {
         if (err) {
           console.error(err);
           return;
@@ -421,15 +422,16 @@ program
     console.log('   list                                  获取礼物清单');
     console.log('   send <giftId> <receiver> <streamId>   发送礼物');
     console.log('   records <resultsPerPage> <type> ');
-    console.log('           <page> [-s] [-o]              获取用户交易记录');
-    console.log('   contributors <resultsPerPage> <page>  礼物贡献者');
+    console.log('           <page> [-s] [-d]              获取用户交易记录');
+    console.log('   contributors <uuid> <resultsPerPage>');
+    console.log('                <page>                   礼物贡献者');
     console.log();
     console.log('  Examples:');
     console.log();
     console.log('    $ lcp gift list');
     console.log('    $ lcp gift send 9aa1bf90-1f5d-11e6-ba5e-c56c2a8bfd5d myVideo:dev-3b11e871-39fc-11e6-bac4-9f0d0e18eaa6 1');
-    console.log('    $ lcp gift records 10 1 1');
-    console.log('    $ lcp gift contributors 10 1');
+    console.log('    $ lcp gift records 10 `sender` 1');
+    console.log('    $ lcp gift contributors ec8708b0-0eb9-11e6-b846-134668be52d0 10 1');
     console.log();
   });
 
@@ -623,7 +625,7 @@ program
       console.log('转账');
       getClient().account.transfer(param1, param2, function(err, data) {
         if (err) {
-          console.error(error);
+          console.error(err);
           return;
         }
         output(options.output, data);
@@ -650,7 +652,7 @@ program
     console.log('    upacc [--description] [--displayName]      更新账户信息');
     console.log('    deposit <money>                            充值');
     console.log('    balance                                    获取余额');
-    console.log('    withdraw <money>                           提现');
+    // console.log('    withdraw <money>                           提现');
     console.log('    transfer <receiverId> <money>              转账');
     console.log();
     console.log('  Examples:');
@@ -668,7 +670,7 @@ program
     console.log('    $ lcp at upacc --description 1234 --displayName 5678');
     console.log('    $ lcp at deposit 500');
     console.log('    $ lcp at balance');
-    console.log('    $ lcp at withdraw 100');
+    // console.log('    $ lcp at withdraw 100');
     console.log('    $ lcp at transfer abcd1234 100');
     console.log();
   });
