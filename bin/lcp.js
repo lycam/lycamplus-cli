@@ -595,7 +595,7 @@ program
     } else if (cmd == 'deposit') {
 
       console.log(' 账户充值');
-      getClient().account.deposit({money: param1}, function(err, data) {
+      getClient().account.deposit(param1, function(err, data) {
         if (err) {
           console.error(err);
           return;
@@ -623,7 +623,7 @@ program
       });
     } else if (cmd == 'transfer') {
       console.log('转账');
-      getClient().account.transfer(param1, param2, function(err, data) {
+      getClient().account.transfer(param2, param1, function(err, data) {
         if (err) {
           console.error(err);
           return;
@@ -671,7 +671,7 @@ program
     console.log('    $ lcp at deposit 500');
     console.log('    $ lcp at balance');
     // console.log('    $ lcp at withdraw 100');
-    console.log('    $ lcp at transfer abcd1234 100');
+    console.log('    $ lcp at transfer fa95980-763d-11e6-9610-f5df51643a4d 100');
     console.log();
   });
 
